@@ -1,7 +1,6 @@
 import requests
 import ssl
 from bs4 import BeautifulSoup
-from time import perf_counter
 import threading
 from dotenv import load_dotenv
 import os
@@ -62,6 +61,7 @@ class SMC:
         self.session = session
         self.cookies = None
         self.result = []
+        self.gw_names = None
 
     def login(self, url, body):
         login = self.session.post(url, data=body, verify=False)
@@ -107,7 +107,8 @@ class SMC:
     def main(self, mac):
         threads = []
         self.result.clear()
-        for name in gw_names:
+        
+        for name in self.gw_names:
             threads.append(threading.Thread(target=self.send_request, args=(name, mac)))
         
         for thread in threads:
@@ -118,23 +119,3 @@ class SMC:
         
         print(f'{self.result=}')
         return self.result
-    
-
-if __name__ == "__main__":
-    with requests.Session() as session:
-        session.mount("https://", HTTPAdapter())
-        smc_obj = SMC(session)
-        smc_obj.login(url_login, login_body)
-        
-        smc_obj.set_ds5_switch(url_set_ds5_switch, ds5_body)
-        
-        try:
-            gw_names = smc_obj.get_gw_names_list(url_get_all_resi_gw)
-        except IndexError:
-            print("Something went wrong, incorrect page was loaded so can't continue further.")
-        else:
-            dummy_mac = input("Enter mac: ").lower()
-            start = perf_counter()
-            smc_obj.main(dummy_mac)
-            total = perf_counter() - start
-            print(f"It took {total/60} minutes to complete!")
