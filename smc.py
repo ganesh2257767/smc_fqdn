@@ -2,7 +2,7 @@ import requests
 import ssl
 from bs4 import BeautifulSoup
 from time import perf_counter
-import threading
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import os
 
@@ -67,10 +67,8 @@ class SMC:
         login = self.session.post(url, data=body, verify=False)
         self.cookies = login.cookies
 
-
     def set_ds5_switch(self, url, body):
         self.session.post(url, data=body, verify=False, cookies=self.cookies)
-        
 
     def get_gw_names_list(self, url):
         get_all_rei_gw_res = self.session.get(url, verify=False, cookies=self.cookies)
@@ -83,8 +81,10 @@ class SMC:
         print(len(gw_names[150:450]))
         return gw_names[150:450]
 
-
-    def send_request(self, gw_name, mac):
+    def send_request(self, args):
+        if len(self.result) > 0:
+            return
+        gw_name, mac = args
         print(gw_name)
         specific_gw_response = self.session.get(url=url_get_specific_gw.format(gw_name), verify=False, cookies=self.cookies)   
         specific_gw_response_page = BeautifulSoup(specific_gw_response.content, 'html.parser')
@@ -103,38 +103,26 @@ class SMC:
                 dns.append(str(all_tds[172].string))
             self.result.append((id_to_delete, fqdn_name, dns))
 
-
     def main(self, mac):
-        threads = []
         self.result.clear()
-        for name in gw_names:
-            threads.append(threading.Thread(target=self.send_request, args=(name, mac)))
-        
-        for thread in threads:
-            thread.start()
-        
-        for thread in threads:
-            thread.join()
-        
+        gw_names = self.get_gw_names_list(url_get_all_resi_gw)
+
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            executor.map(self.send_request, ((name, mac) for name in gw_names))
+
         print(f'{self.result=}')
         return self.result
-    
 
 if __name__ == "__main__":
     with requests.Session() as session:
         session.mount("https://", HTTPAdapter())
         smc_obj = SMC(session)
         smc_obj.login(url_login, login_body)
-        
+
         smc_obj.set_ds5_switch(url_set_ds5_switch, ds5_body)
-        
-        try:
-            gw_names = smc_obj.get_gw_names_list(url_get_all_resi_gw)
-        except IndexError:
-            print("Something went wrong, incorrect page was loaded so can't continue further.")
-        else:
-            dummy_mac = input("Enter mac: ").lower()
-            start = perf_counter()
-            smc_obj.main(dummy_mac)
-            total = perf_counter() - start
-            print(f"It took {total/60} minutes to complete!")
+
+        dummy_mac = input("Enter mac: ").lower()
+        start = perf_counter()
+        smc_obj.main(dummy_mac)
+        total = perf_counter() - start
+        print(f"It took {total/60} minutes to complete!")
