@@ -2,7 +2,7 @@ import gooeypie as gp
 from smc import HTTPAdapter, SMC, url_login, login_body, url_get_all_resi_gw, url_set_ds5_switch, ds5_body
 import requests
 import threading
-from time import perf_counter
+from time import perf_counter, sleep
   
 
 def create_session_and_login():
@@ -15,9 +15,10 @@ def create_session_and_login():
         try:
             smc_obj.login(url_login, login_body)
         except requests.exceptions.ConnectionError:
-            app.alert("Error", "Connection error, check VPN or Internet Connection", "error")
-            print("Error", "Connection error, check VPN or Internet Connection", "error")
-            return
+            if app.confirm_retrycancel("Error", "Connection error, check VPN or Internet Connection", "error"):
+                create_session_and_login()
+            else:
+                app.exit()
         
         status_label.text = 'Setting switch to DS5...'
         app.update()
@@ -30,25 +31,43 @@ def create_session_and_login():
             status_label.text = 'Done'
             search_btn.disabled = False
         except IndexError:
-            print("Something went wrong, incorrect page was loaded so can't continue further.")
+            app.alert("Error", "Something went wrong, incorrect page was loaded so can't continue further.", "error")
+            return
+            
+def timer():
+    global flag, m, s
+    flag = True
+    t = 0
+    while flag:
+        m, s = divmod(t, 60)
+        status_label.text = f'{m:0>2}:{s:0>2}'
+        app.update()
+        t += 1
+        sleep(1)
 
 
 def get_results():
+    global flag, m, s
     if len(mac_input.text) != 12:
         app.alert("Error", "Mac should be 12 characters!", "error")
         return
-    status_label.text = 'Please wait...'
-    start = perf_counter()
+    threading.Thread(target=timer, daemon=True).start()
     progress.start(25)
+    search_btn.disabled = True
     result = smc_obj.main(mac_input.text)
-    total = perf_counter() - start
     progress.stop()
     progress.value = 0
-    status_label.text = 'Done'
+    search_btn.disabled = False
+    flag = False
+    # status_label.text = 'Done'
 
     if result:
         result = result[0]
-        app.alert(f"Time: {total/60} minutes", f"Media gateway to delete: {result[0]}\n\nFQDN: {result[1]}\n\nDNs: {', '.join([dn for dn in result[2]])}\n\nTime: {total/60} minutes\n", "info")
+        table.data = [
+            [result[0], result[1], ', '.join(result[2]), f"{int(m):0>2}:{int(s):0>2}"]
+        ]
+        table_win.show_on_top()
+        # app.alert(f"Total time: {m:0>2}:{s:0>2}", f"Media gateway to delete: {result[0]}\n\nFQDN: {result[1]}\n\nDNs: {', '.join([dn for dn in result[2]])}\n\nTime: {total/60} minutes\n", "info")
     else:
         app.alert("No records", "No records found for this MAC, please try manually, sorry!", "info")
 
@@ -65,12 +84,20 @@ search_btn.disabled = True
 progress = gp.Progressbar(app, 'indeterminate')
 status_label = gp.Label(app, '')
 
+table_win = gp.Window(app, 'Result')
+
+table = gp.Table(table_win, ['GW Name', 'FQDN', 'DNs', 'Time'])
+table.set_column_alignments('center', 'center', 'center', 'center')
+
 app.set_grid(4, 2)
 app.add(mac_label, 1, 1)
 app.add(mac_input, 1, 2)
 app.add(search_btn, 2, 1, column_span=2, align='center')
 app.add(progress, 3, 1, column_span=2, align='center')
 app.add(status_label, 4, 1, column_span=2, align='center')
+
+table_win.set_grid(1, 1)
+table_win.add(table, 1, 1)
 
 app.on_open(lambda: threading.Thread(target=create_session_and_login).start())
 
