@@ -12,8 +12,12 @@ def create_session_and_login():
         smc_obj = SMC(session)
         status_label.text = 'Logging into SMC...'
         app.update()
-        smc_obj.login(url_login, login_body)
-        
+        try:
+            smc_obj.login(url_login, login_body)
+        except requests.exceptions.ConnectionError:
+            app.alert("Error", "Connection error, check VPN or Internet Connection", "error")
+            print("Error", "Connection error, check VPN or Internet Connection", "error")
+            return
         
         status_label.text = 'Setting switch to DS5...'
         app.update()
