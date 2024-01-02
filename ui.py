@@ -2,7 +2,7 @@ import gooeypie as gp
 from smc import HTTPAdapter, SMC, url_login, login_body, url_get_all_resi_gw, url_set_ds5_switch, ds5_body
 import requests
 import threading
-from time import perf_counter, sleep
+from time import sleep
   
 
 def create_session_and_login():
@@ -59,7 +59,6 @@ def get_results():
     progress.value = 0
     search_btn.disabled = False
     flag = False
-    # status_label.text = 'Done'
 
     if result:
         result = result[0]
@@ -67,7 +66,6 @@ def get_results():
             [result[0], result[1], ', '.join(result[2]), f"{int(m):0>2}:{int(s):0>2}"]
         ]
         table_win.show_on_top()
-        # app.alert(f"Total time: {m:0>2}:{s:0>2}", f"Media gateway to delete: {result[0]}\n\nFQDN: {result[1]}\n\nDNs: {', '.join([dn for dn in result[2]])}\n\nTime: {total/60} minutes\n", "info")
     else:
         app.alert("No records", "No records found for this MAC, please try manually, sorry!", "info")
 

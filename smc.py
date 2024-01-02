@@ -1,7 +1,6 @@
 import requests
 import ssl
 from bs4 import BeautifulSoup
-from time import perf_counter
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import os
@@ -77,9 +76,9 @@ class SMC:
         tr = page.find_all('table')[0].find_all('tr')[3].find('td').find('table').find_all('tr')
 
         gw_names = [row.find('td').get_text() for row in tr[1:]]
-        print(gw_names[150:450])
-        print(len(gw_names[150:450]))
-        return gw_names[150:450]
+        print(gw_names)
+        print(len(gw_names))
+        return gw_names
 
     def send_request(self, args):
         if len(self.result) > 0:
