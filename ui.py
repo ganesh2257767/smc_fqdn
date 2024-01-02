@@ -1,5 +1,5 @@
 import gooeypie as gp
-from smc import HTTPAdapter, SMC, url_login, login_body, url_get_all_resi_gw, url_set_ds5_switch, ds5_body
+from smc import HTTPAdapter, SMC, url_login, login_body, url_get_all_resi_gw, url_set_ds5_switch, ds5_body, url_delete_gw, get_delete_gw_body, delete_gw_body, get_delete_dn_body, delete_dn_body
 import requests
 import threading
 from time import sleep
@@ -33,7 +33,22 @@ def create_session_and_login():
         except IndexError:
             app.alert("Error", "Something went wrong, incorrect page was loaded so can't continue further.", "error")
             return
-            
+
+
+def delete_dn_or_gw(name, dns):
+    answer = app.confirm_yesno("Delete", f"Are you sure you want to delete {name}?", "warning")
+    if answer:
+        if dns:
+            for dn in dns:
+                smc_obj.get_dn_for_delete(url_delete_gw, get_delete_dn_body, dn)
+                smc_obj.delete_dn(url_delete_gw, delete_dn_body, dn)
+            app.alert("Done", "Done deleting the DNs and Gateway FQDN.\n\nPlease retry task from Strata.", "info")
+        else:
+            smc_obj.get_gw_for_delete(url_delete_gw, get_delete_gw_body, name)
+            smc_obj.delete_gw(url_delete_gw, delete_gw_body)
+            app.alert("Done", "Done deleting the Gateway FQDN.\n\nPlease retry task from Strata.", "info")
+
+  
 def timer():
     global flag, m, s
     flag = True
@@ -54,16 +69,19 @@ def get_results():
     threading.Thread(target=timer, daemon=True).start()
     progress.start(25)
     search_btn.disabled = True
-    result = smc_obj.main(mac_input.text.lower())
+    smc_obj.main(mac_input.text.lower())
     progress.stop()
     progress.value = 0
     search_btn.disabled = False
     flag = False
 
-    if result:
-        result = result[0]
+    if smc_obj.result:
+        smc_obj.result = smc_obj.result[0]
+        name = smc_obj.result[0]
+        fqdn = smc_obj.result[1]
+        dns = smc_obj.result[2]
         table.data = [
-            [result[0], result[1], ', '.join(result[2]), f"{int(m):0>2}:{int(s):0>2}"]
+            [name, fqdn, ', '.join(dns), f"{int(m):0>2}:{int(s):0>2}"]
         ]
         table_win.show_on_top()
     else:
@@ -87,6 +105,8 @@ table_win = gp.Window(app, 'Result')
 table = gp.Table(table_win, ['GW Name', 'FQDN', 'DNs', 'Time'])
 table.set_column_alignments('center', 'center', 'center', 'center')
 
+delete_btn = gp.Button(table_win, 'Delete FQDN?', lambda x: delete_dn_or_gw(smc_obj.result[0], smc_obj.result[2]))
+
 app.set_grid(4, 2)
 app.add(mac_label, 1, 1)
 app.add(mac_input, 1, 2)
@@ -94,8 +114,9 @@ app.add(search_btn, 2, 1, column_span=2, align='center')
 app.add(progress, 3, 1, column_span=2, align='center')
 app.add(status_label, 4, 1, column_span=2, align='center')
 
-table_win.set_grid(1, 1)
+table_win.set_grid(2, 1)
 table_win.add(table, 1, 1)
+table_win.add(delete_btn, 2, 1, align='center')
 
 app.on_open(lambda: threading.Thread(target=create_session_and_login).start())
 

@@ -8,7 +8,7 @@ import os
 load_dotenv()
 
 url_login = 'https://10.244.170.85:8099/smc/login'
-url_set_ds5_switch = 'https://10.244.170.85:8099/smc/app'
+url_set_ds5_switch = url_delete_gw = 'https://10.244.170.85:8099/smc/app'
 url_get_all_resi_gw = 'https://10.244.170.85:8099/smc/app?outer=700&inner=708&cid=&PageNumber=1&PageSize=1000&operation=Pop_GetGatewayList&title=Residential Gateway List'
 url_get_specific_gw = 'https://10.244.170.85:8099/smc/app?operation=Pop_GetGateway&outer=700&inner=708&cid=&title=Residential Gateway Detail&GwName={}'
 
@@ -44,6 +44,66 @@ ds5_body = {
    'style': 'Blue',
 }
 
+
+get_delete_gw_body = {
+    'cid': '',
+    'GwName': '',
+    'imageField.x': 43,
+    'imageField.y': 9,
+    'inner': 702,
+    'inner_r': 703,
+    'mainObjectType': 'null',
+    'operation': 'GetGateway',
+    'outer': 700,
+    'outer_r': 701
+}
+
+
+delete_gw_body = {
+    'cid': '',
+    'inner': 704,
+    'inner_r': 702,
+    'isXMLHttpRequest': 'true',
+    'mainObjectType': 'null',
+    'operation': 'DeleteGateway',
+    'outer': 701,
+    'outer_r': 700
+}
+
+get_delete_dn_body = {
+   'cid': '',
+   'cid': '',
+   'hiqrequest': 'true',
+   'imageField.x': 48,
+   'imageField.y': 12,
+   'inner': 2,
+   'inner_r': 3,
+   'mainObjectType': 'null',
+   'operation': 'GetSubscriberInfo',
+   'outer': 1,
+   'outer_r': 3,
+   'outer_r_pbx_range': 333,
+   'outer_r_teen_line': 33,
+   'ServiceId': ''
+}
+
+delete_dn_body = {
+   'cid': '',
+   'CSTA_ConnectionInfo': 'MGCP',
+   'CSTA_Subscribed': 'no',
+   'DeleteGatewayObjects': 'DeleteCircuitsAndGateway',
+   'hiqrequest': 'true',
+   'inner': 4,
+   'inner_r': 2,
+   'isXMLHttpRequest': 'true',
+   'mainObjectType': 'null',
+   'operation': 'DeleteSubscriber',
+   'outer': 3,
+   'outer_r': 1,
+   'ServiceId': ''
+}
+
+
 class HTTPAdapter(requests.adapters.HTTPAdapter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -76,9 +136,8 @@ class SMC:
         tr = page.find_all('table')[0].find_all('tr')[3].find('td').find('table').find_all('tr')
 
         gw_names = [row.find('td').get_text() for row in tr[1:]]
-        print(gw_names[150:450])
-        print(len(gw_names[150:450]))
-        return gw_names[150:450]
+        print(len(gw_names))
+        return gw_names
 
     def send_request(self, args):
         if len(self.result) > 0:
@@ -95,13 +154,43 @@ class SMC:
         if mac in fqdn_name:
             id_to_delete = str(all_tds[5].string)
             dns = []
-            if len(all_tds) == 171:
+            length = len(all_tds)
+            if length == 171:
                 dns.append(str(all_tds[170].string))
-            if len(all_tds) == 173:
+            elif length == 173:
                 dns.append(str(all_tds[170].string))
                 dns.append(str(all_tds[172].string))
+            elif length == 175:
+                dns.append(str(all_tds[170].string))
+                dns.append(str(all_tds[172].string))
+                dns.append(str(all_tds[174].string))
+            dns = [dn for dn in dns if dn != 'None']
             self.result.append((id_to_delete, fqdn_name, dns))
+    
+    
+    def get_gw_for_delete(self, url, body, gw_name):
+        body['GwName'] = gw_name
+        self.session.post(url=url, data=body, verify=False, cookies=self.cookies)
+    
+    
+    def delete_gw(self, url, body):
+        delete_gw_response = self.session.post(url=url, data=body, verify=False, cookies=self.cookies)
+        delete_gw_response_page = BeautifulSoup(delete_gw_response.content, 'html.parser')
+        print(delete_gw_response_page)
+    
+    
+    def get_dn_for_delete(self, url, body, dn):
+        body['ServiceId'] = int(dn)
+        self.session.post(url=url, data=body, verify=False, cookies=self.cookies)
+    
+    
+    def delete_dn(self, url, body, dn):
+        body['ServiceId'] = int(dn)
+        delete_dn_response = self.session.post(url=url, data=body, verify=False, cookies=self.cookies)
+        delete_dn_response_page = BeautifulSoup(delete_dn_response.content, 'html.parser')
+        print(delete_dn_response_page)
 
+    
     def main(self, mac):
         self.result.clear()
         gw_names = self.get_gw_names_list(url_get_all_resi_gw)
@@ -110,4 +199,3 @@ class SMC:
             executor.map(self.send_request, ((name, mac) for name in gw_names))
 
         print(f'{self.result=}')
-        return self.result
