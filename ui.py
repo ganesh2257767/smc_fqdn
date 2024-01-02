@@ -54,7 +54,7 @@ def get_results():
     threading.Thread(target=timer, daemon=True).start()
     progress.start(25)
     search_btn.disabled = True
-    result = smc_obj.main(mac_input.text)
+    result = smc_obj.main(mac_input.text.lower())
     progress.stop()
     progress.value = 0
     search_btn.disabled = False
