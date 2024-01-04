@@ -108,6 +108,7 @@ table_win = gp.Window(app, 'Result')
 
 table = gp.Table(table_win, ['GW Name', 'FQDN', 'DNs', 'Time'])
 table.set_column_alignments('center', 'center', 'center', 'center')
+table.set_column_widths(250, 250, 200, 100)
 
 delete_btn = gp.Button(table_win, 'Delete FQDN?', lambda x: delete_dn_or_gw(smc_obj.result))
 

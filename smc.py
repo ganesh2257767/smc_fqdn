@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import os
+from datetime import datetime
 
 load_dotenv()
 
@@ -137,8 +138,14 @@ class SMC:
 
         gw_names = [row.find('td').get_text() for row in tr[1:]]
         print(gw_names)
+        with open('logs.txt', 'a') as f:
+            f.write(f'[{datetime.now()}]\n')
+            for line in gw_names:
+                f.write(line)
+                f.write('\n')
+            f.write('-'*50)
         return gw_names
-
+ 
     def send_request(self, args):
         if len(self.result) > 0:
             return
