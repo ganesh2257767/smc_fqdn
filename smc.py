@@ -136,8 +136,8 @@ class SMC:
         tr = page.find_all('table')[0].find_all('tr')[3].find('td').find('table').find_all('tr')
 
         gw_names = [row.find('td').get_text() for row in tr[1:]]
-        print(gw_names[-10:])
-        return gw_names[-10:]
+        print(gw_names)
+        return gw_names
 
     def send_request(self, args):
         if len(self.result) > 0:
