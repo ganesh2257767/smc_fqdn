@@ -35,18 +35,19 @@ def create_session_and_login():
             return
 
 
-def delete_dn_or_gw(name, dns):
-    answer = app.confirm_yesno("Delete", f"Are you sure you want to delete {name}?", "warning")
-    if answer:
-        if dns:
-            for dn in dns:
-                smc_obj.get_dn_for_delete(url_delete_gw, get_delete_dn_body, dn)
-                smc_obj.delete_dn(url_delete_gw, delete_dn_body, dn)
-            app.alert("Done", "Done deleting the DNs and Gateway FQDN.\n\nPlease retry task from Strata.", "info")
-        else:
-            smc_obj.get_gw_for_delete(url_delete_gw, get_delete_gw_body, name)
-            smc_obj.delete_gw(url_delete_gw, delete_gw_body)
-            app.alert("Done", "Done deleting the Gateway FQDN.\n\nPlease retry task from Strata.", "info")
+def delete_dn_or_gw(result):
+    for name, _, dns in result:
+        answer = app.confirm_yesno("Delete", f"Are you sure you want to delete {'/'.join((name, ', '.join(dns)))}?", "warning")
+        if answer:
+            if dns:
+                for dn in dns:
+                    smc_obj.get_dn_for_delete(url_delete_gw, get_delete_dn_body, dn)
+                    smc_obj.delete_dn(url_delete_gw, delete_dn_body, dn)
+                app.alert("Done", "Done deleting the DNs and Gateway FQDN.\n\nPlease retry task from Strata.", "info")
+            else:
+                smc_obj.get_gw_for_delete(url_delete_gw, get_delete_gw_body, name)
+                smc_obj.delete_gw(url_delete_gw, delete_gw_body)
+                app.alert("Done", "Done deleting the Gateway FQDN.\n\nPlease retry task from Strata.", "info")
 
   
 def timer():
@@ -75,14 +76,17 @@ def get_results():
     search_btn.disabled = False
     flag = False
 
+    data = []
+    
     if smc_obj.result:
-        smc_obj.result = smc_obj.result[0]
-        name = smc_obj.result[0]
-        fqdn = smc_obj.result[1]
-        dns = smc_obj.result[2]
-        table.data = [
-            [name, fqdn, ', '.join(dns), f"{int(m):0>2}:{int(s):0>2}"]
-        ]
+        for result in smc_obj.result:
+            name = result[0]
+            fqdn = result[1]
+            dns = result[2]
+            
+            data.append([name, fqdn, ', '.join(dns), f"{int(m):0>2}:{int(s):0>2}"])
+        table.data = data
+
         table_win.show_on_top()
     else:
         app.alert("No records", "No records found for this MAC, please try manually, sorry!", "info")
@@ -105,14 +109,14 @@ table_win = gp.Window(app, 'Result')
 table = gp.Table(table_win, ['GW Name', 'FQDN', 'DNs', 'Time'])
 table.set_column_alignments('center', 'center', 'center', 'center')
 
-delete_btn = gp.Button(table_win, 'Delete FQDN?', lambda x: delete_dn_or_gw(smc_obj.result[0], smc_obj.result[2]))
+delete_btn = gp.Button(table_win, 'Delete FQDN?', lambda x: delete_dn_or_gw(smc_obj.result))
 
-app.set_grid(4, 2)
+app.set_grid(4, 3)
 app.add(mac_label, 1, 1)
 app.add(mac_input, 1, 2)
-app.add(search_btn, 2, 1, column_span=2, align='center')
-app.add(progress, 3, 1, column_span=2, align='center')
-app.add(status_label, 4, 1, column_span=2, align='center')
+app.add(search_btn, 1, 3)
+app.add(progress, 3, 1, column_span=3, align='center')
+app.add(status_label, 4, 1, column_span=3, align='center')
 
 table_win.set_grid(2, 1)
 table_win.add(table, 1, 1)
