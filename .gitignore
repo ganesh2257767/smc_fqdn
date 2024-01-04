@@ -1,3 +1,5 @@
 env/
 env36/
 .env
+*.txt
+__pycache__/
