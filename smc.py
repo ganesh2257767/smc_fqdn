@@ -77,9 +77,8 @@ class SMC:
         tr = page.find_all('table')[0].find_all('tr')[3].find('td').find('table').find_all('tr')
 
         gw_names = [row.find('td').get_text() for row in tr[1:]]
-        print(gw_names[150:450])
-        print(len(gw_names[150:450]))
-        return gw_names[150:450]
+        print(gw_names)
+        return gw_names
 
     def send_request(self, args):
         if len(self.result) > 0:
@@ -103,15 +102,35 @@ class SMC:
                 dns.append(str(all_tds[172].string))
             self.result.append((id_to_delete, fqdn_name, dns))
 
-    def main(self, mac):
+    def main(self, mac, gw_names):
         self.result.clear()
-        gw_names = self.get_gw_names_list(url_get_all_resi_gw)
 
         with ThreadPoolExecutor(max_workers=20) as executor:
             executor.map(self.send_request, ((name, mac) for name in gw_names))
-
-        print(f'{self.result=}')
+        
+        print(self.result)
         return self.result
+    
+    def make_table(self, result):
+        # Calculate total width
+        total_width = 0
+        margin = 10
+        headers = ["GW Name", "FQDN", "DNs", "Time"]
+        header_str = ''
+        data_str = ''
+        for row in result:
+            for data, header in zip(row, headers):
+                if isinstance(data, list):
+                    data = ', '.join(data)
+                total_width += len(data) + margin
+                header_str += f'|{header:^{len(data) + (margin-1)}}'
+                data_str += f'|{data:^{len(data) + (margin-1)}}'
+            
+        print("-" * (total_width + 1))
+        print(header_str + '|')
+        print("-" * (total_width + 1))
+        print(data_str + '|')
+        print("-" * (total_width + 1))
 
 if __name__ == "__main__":
     with requests.Session() as session:
@@ -120,9 +139,17 @@ if __name__ == "__main__":
         smc_obj.login(url_login, login_body)
 
         smc_obj.set_ds5_switch(url_set_ds5_switch, ds5_body)
+        
+        gw_names = smc_obj.get_gw_names_list(url_get_all_resi_gw)
 
         dummy_mac = input("Enter mac: ").lower()
+        
         start = perf_counter()
-        smc_obj.main(dummy_mac)
+        result = smc_obj.main(dummy_mac, gw_names)
         total = perf_counter() - start
-        print(f"It took {total/60} minutes to complete!")
+        m, s = divmod(total, 60)
+        result = list(map(list, result))
+        for row in result:
+            row.append(f'{int(m):0>2}:{int(s):0>2}')
+        smc_obj.make_table(result)
+        # print(f"It took {int(m):0>2}:{int(s):0>2} minutes to complete!")
