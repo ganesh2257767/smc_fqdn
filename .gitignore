@@ -3,3 +3,4 @@ env36/
 .env
 ui.py
 logs.txt
+__pycache__/
