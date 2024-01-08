@@ -2,3 +2,4 @@ env/
 env36/
 .env
 ui.py
+logs.txt
