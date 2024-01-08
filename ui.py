@@ -39,17 +39,22 @@ def delete_dn_or_gw(result):
     for name, _, dns in result:
         answer = app.confirm_yesno("Delete", f"Are you sure you want to delete {'/'.join((name, ', '.join(dns)))}?", "warning")
         if answer:
+            progress1.start(25)
             if dns:
                 for dn in dns:
                     smc_obj.get_dn_for_delete(url_delete_gw, get_delete_dn_body, dn)
                     smc_obj.delete_dn(url_delete_gw, delete_dn_body, dn)
-                app.alert("Done", "Done deleting the DNs and Gateway FQDN.\n\nPlease retry task from Strata.", "info")
             else:
                 smc_obj.get_gw_for_delete(url_delete_gw, get_delete_gw_body, name)
                 smc_obj.delete_gw(url_delete_gw, delete_gw_body)
-                app.alert("Done", "Done deleting the Gateway FQDN.\n\nPlease retry task from Strata.", "info")
+            progress1.stop()
+            progress1.value = 0
+            
+    table.data = [table.data[0][:-1] + ["Yes"]]
+    app.alert("Done", "Done deleting the DNs and Gateway FQDN.\n\nPlease retry task from Strata.", "info")
+    delete_btn.disabled = True
 
-  
+
 def timer():
     global flag, m, s
     flag = True
@@ -84,10 +89,11 @@ def get_results():
             fqdn = result[1]
             dns = result[2]
             
-            data.append([name, fqdn, ', '.join(dns), f"{int(m):0>2}:{int(s):0>2}"])
+            data.append([name, fqdn, ', '.join(dns), f"{int(m):0>2}:{int(s):0>2}", "No"])
         table.data = data
 
         table_win.show_on_top()
+        delete_btn.disabled = False
     else:
         app.alert("No records", "No records found for this MAC, please try manually, sorry!", "info")
 
@@ -106,11 +112,14 @@ status_label = gp.Label(app, '')
 
 table_win = gp.Window(app, 'Result')
 
-table = gp.Table(table_win, ['GW Name', 'FQDN', 'DNs', 'Time'])
-table.set_column_alignments('center', 'center', 'center', 'center')
-table.set_column_widths(250, 250, 200, 100)
+table = gp.Table(table_win, ['GW Name', 'FQDN', 'DNs', 'Time', 'Cleared'])
+table.set_column_alignments('center', 'center', 'center', 'center', 'center')
+table.set_column_widths(250, 250, 200, 100, 100)
 
-delete_btn = gp.Button(table_win, 'Delete FQDN?', lambda x: delete_dn_or_gw(smc_obj.result))
+result_container = gp.Container(table_win)
+
+delete_btn = gp.Button(result_container, 'Delete FQDN?', lambda x: threading.Thread(target=delete_dn_or_gw, args=(smc_obj.result,)).start())
+progress1 = gp.Progressbar(result_container, 'indeterminate')
 
 app.set_grid(4, 3)
 app.add(mac_label, 1, 1)
@@ -119,9 +128,13 @@ app.add(search_btn, 1, 3)
 app.add(progress, 3, 1, column_span=3, align='center')
 app.add(status_label, 4, 1, column_span=3, align='center')
 
+result_container.set_grid(1, 2)
+result_container.add(delete_btn, 1, 1)
+result_container.add(progress1, 1, 2)
+
 table_win.set_grid(2, 1)
 table_win.add(table, 1, 1)
-table_win.add(delete_btn, 2, 1, align='center')
+table_win.add(result_container, 2, 1, align='center')
 
 app.on_open(lambda: threading.Thread(target=create_session_and_login).start())
 

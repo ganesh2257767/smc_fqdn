@@ -136,7 +136,7 @@ class SMC:
         page = BeautifulSoup(get_all_rei_gw_res.content, 'html.parser')
         tr = page.find_all('table')[0].find_all('tr')[3].find('td').find('table').find_all('tr')
 
-        gw_names = [row.find('td').get_text() for row in tr[1:]]
+        gw_names = [row.find('td').get_text() for row in tr[1:]][-10:]
         print(gw_names)
         with open('logs.txt', 'a') as f:
             f.write(f'[{datetime.now()}]\n')
