@@ -4,3 +4,8 @@ env36/
 ui.py
 logs.txt
 __pycache__/
+build/
+dist/
+test.*
+*.txt
+*.spec
