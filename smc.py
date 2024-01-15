@@ -161,7 +161,10 @@ class SMC:
             return
         if mac in fqdn_name:
             id_to_delete = str(all_tds[5].string)
-            dns = [dn.string for dn in all_tds[170::2] if dn.string]
+            try:
+                dns = [dn.string for dn in all_tds[170::2] if dn.string]
+            except KeyError:
+                dns = []
             self.result.append((id_to_delete, fqdn_name, dns))
     
     
