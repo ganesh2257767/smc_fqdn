@@ -3,7 +3,6 @@ from smc import HTTPAdapter, SMC, url_login, login_body, url_get_all_resi_gw, ur
 import requests
 import threading
 from time import sleep
-  
 
 def create_session_and_login():
     global smc_obj
@@ -27,7 +26,7 @@ def create_session_and_login():
         try:
             status_label.text = 'Fetching all gateways...'
             app.update()
-            smc_obj.gw_names = smc_obj.get_gw_names_list(url_get_all_resi_gw)
+            smc_obj.get_gw_names_list(url_get_all_resi_gw)
             status_label.text = 'Done'
             search_btn.disabled = False
         except IndexError:
@@ -36,19 +35,25 @@ def create_session_and_login():
 
 
 def delete_dn_or_gw(result):
+    delete_btn.disabled = True
     for name, _, dns in result:
-        answer = app.confirm_yesno("Delete", f"Are you sure you want to delete {'/'.join((name, ', '.join(dns)))}?", "warning")
+        answer = app.confirm_yesno("Delete", f"Are you sure you want to delete?\n\nName: {name}\n\nDN(s): {', '.join(dns)}", "warning")
         if answer:
             if dns:
                 for dn in dns:
                     smc_obj.get_dn_for_delete(url_delete_gw, get_delete_dn_body, dn)
-                    smc_obj.delete_dn(url_delete_gw, delete_dn_body, dn)
-                app.alert("Done", "Done deleting the DNs and Gateway FQDN.\n\nPlease retry task from Strata.", "info")
+                    code, status = smc_obj.delete_dn(url_delete_gw, delete_dn_body, dn)
+                    
             else:
                 smc_obj.get_gw_for_delete(url_delete_gw, get_delete_gw_body, name)
-                smc_obj.delete_gw(url_delete_gw, delete_gw_body)
-                app.alert("Done", "Done deleting the Gateway FQDN.\n\nPlease retry task from Strata.", "info")
-
+                code, status = smc_obj.delete_gw(url_delete_gw, delete_gw_body)
+            if status == 'Success':
+                app.alert(f"Done: Code {code}", "Done deleting the DN(s) and Gateway FQDN.\n\nPlease retry task from Strata.", "info")
+            else:
+                app.alert(f"Error: Code {code}", "Issue deleting DN(s) and Gateway FQDN.\n\nPlease delete manually from SMC v14.", "error")
+        else:
+            delete_btn.disabled = False
+                
   
 def timer():
     global flag, m, s
@@ -63,6 +68,7 @@ def timer():
 
 
 def get_results():
+    delete_btn.disabled = False
     global flag, m, s
     if len(mac_input.text) != 12:
         app.alert("Error", "Mac should be 12 characters!", "error")

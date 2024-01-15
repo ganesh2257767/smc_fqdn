@@ -3,3 +3,7 @@ env36/
 .env
 *.txt
 __pycache__/
+test.*
+__pycache__/
+dist/
+build/

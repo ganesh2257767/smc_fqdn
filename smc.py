@@ -5,6 +5,9 @@ from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import os
 from datetime import datetime
+import xmltodict
+
+requests.urllib3.disable_warnings()
 
 load_dotenv()
 
@@ -122,6 +125,7 @@ class SMC:
         self.session = session
         self.cookies = None
         self.result = []
+        self.gw_names = []
 
     def login(self, url, body):
         login = self.session.post(url, data=body, verify=False)
@@ -136,21 +140,18 @@ class SMC:
         page = BeautifulSoup(get_all_rei_gw_res.content, 'html.parser')
         tr = page.find_all('table')[0].find_all('tr')[3].find('td').find('table').find_all('tr')
 
-        gw_names = [row.find('td').get_text() for row in tr[1:]]
-        print(gw_names)
+        self.gw_names = [row.find('td').get_text() for row in tr[1:]]
         with open('logs.txt', 'a') as f:
             f.write(f'[{datetime.now()}]\n')
-            for line in gw_names:
-                f.write(line)
-                f.write('\n')
-            f.write('-'*50)
-        return gw_names
+            for line in self.gw_names:
+                f.write(f'{line}, ')
+            f.write('\n'+'-'*100)
+        
  
     def send_request(self, args):
         if len(self.result) > 0:
             return
         gw_name, mac = args
-        print(gw_name)
         specific_gw_response = self.session.get(url=url_get_specific_gw.format(gw_name), verify=False, cookies=self.cookies)   
         specific_gw_response_page = BeautifulSoup(specific_gw_response.content, 'html.parser')
         all_tds = specific_gw_response_page.find_all('td')
@@ -160,18 +161,7 @@ class SMC:
             return
         if mac in fqdn_name:
             id_to_delete = str(all_tds[5].string)
-            dns = []
-            length = len(all_tds)
-            if length == 171:
-                dns.append(str(all_tds[170].string))
-            elif length == 173:
-                dns.append(str(all_tds[170].string))
-                dns.append(str(all_tds[172].string))
-            elif length == 175:
-                dns.append(str(all_tds[170].string))
-                dns.append(str(all_tds[172].string))
-                dns.append(str(all_tds[174].string))
-            dns = [dn for dn in dns if dn != 'None']
+            dns = [dn.string for dn in all_tds[170::2] if dn.string]
             self.result.append((id_to_delete, fqdn_name, dns))
     
     
@@ -183,7 +173,13 @@ class SMC:
     def delete_gw(self, url, body):
         delete_gw_response = self.session.post(url=url, data=body, verify=False, cookies=self.cookies)
         delete_gw_response_page = BeautifulSoup(delete_gw_response.content, 'html.parser')
-        print(delete_gw_response_page)
+        a = xmltodict.parse(str(delete_gw_response_page))
+        try:
+            a['root']
+            code, status = 0, 'Success'
+        except KeyError:
+            code, status = -1, 'Failure'
+        return code, status
     
     
     def get_dn_for_delete(self, url, body, dn):
@@ -195,14 +191,22 @@ class SMC:
         body['ServiceId'] = int(dn)
         delete_dn_response = self.session.post(url=url, data=body, verify=False, cookies=self.cookies)
         delete_dn_response_page = BeautifulSoup(delete_dn_response.content, 'html.parser')
-        print(delete_dn_response_page)
+        a = xmltodict.parse(str(delete_dn_response_page))
+        try:
+            base = a['root']['soap-env:envelope']['soap-env:body']['unsp:deletesubscriberresult']['resultcodestruct']
+
+            code = base['resultcode']
+            status = base['resulttext1']
+        except KeyError:
+            code, status = -1, 'Failure'
+        return code, status
 
     
     def main(self, mac):
         self.result.clear()
-        gw_names = self.get_gw_names_list(url_get_all_resi_gw)
+        # gw_names = self.get_gw_names_list(url_get_all_resi_gw)
 
         with ThreadPoolExecutor(max_workers=20) as executor:
-            executor.map(self.send_request, ((name, mac) for name in gw_names))
+            executor.map(self.send_request, ((name, mac) for name in self.gw_names))
 
         print(f'{self.result=}')
