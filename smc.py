@@ -1,10 +1,13 @@
 import requests
 import ssl
 from bs4 import BeautifulSoup
-from time import perf_counter
+from time import perf_counter, sleep
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import os
+import threading
+
+requests.urllib3.disable_warnings()
 
 load_dotenv()
 
@@ -62,6 +65,11 @@ class SMC:
         self.session = session
         self.cookies = None
         self.result = []
+        self.found = False
+        self.CURSOR_UP = '\033[1A'
+        self.CLEAR = '\x1b[2K'
+        self.CLEAR_LINE = self.CURSOR_UP + self.CLEAR
+
 
     def login(self, url, body):
         login = self.session.post(url, data=body, verify=False)
@@ -84,7 +92,6 @@ class SMC:
         if len(self.result) > 0:
             return
         gw_name, mac = args
-        print(gw_name)
         specific_gw_response = self.session.get(url=url_get_specific_gw.format(gw_name), verify=False, cookies=self.cookies)   
         specific_gw_response_page = BeautifulSoup(specific_gw_response.content, 'html.parser')
         all_tds = specific_gw_response_page.find_all('td')
@@ -103,12 +110,13 @@ class SMC:
             self.result.append((id_to_delete, fqdn_name, dns))
 
     def main(self, mac, gw_names):
+        self.found = False
         self.result.clear()
-
+        threading.Thread(target=self.timer).start()
         with ThreadPoolExecutor(max_workers=20) as executor:
             executor.map(self.send_request, ((name, mac) for name in gw_names))
         
-        print(self.result)
+        self.found = True
         return self.result
     
     def make_table(self, result):
@@ -131,25 +139,36 @@ class SMC:
         print("-" * (total_width + 1))
         print(data_str + '|')
         print("-" * (total_width + 1))
-
+        
+    def timer(self):
+        t = 0
+        global m, s
+        while not self.found:
+            m, s = divmod(t, 60)
+            print(f'{int(m):0>2}:{int(s):0>2}')
+            sleep(1)
+            t += 1
+            print(self.CLEAR_LINE, end="")
+            
 if __name__ == "__main__":
     with requests.Session() as session:
         session.mount("https://", HTTPAdapter())
         smc_obj = SMC(session)
+        print("Logging into SMC...")
         smc_obj.login(url_login, login_body)
 
+        print("Setting DS5 Switch...")
         smc_obj.set_ds5_switch(url_set_ds5_switch, ds5_body)
         
+        print("Getting all Gateways...")
         gw_names = smc_obj.get_gw_names_list(url_get_all_resi_gw)
 
         dummy_mac = input("Enter mac: ").lower()
+        os.system("")
         
-        start = perf_counter()
         result = smc_obj.main(dummy_mac, gw_names)
-        total = perf_counter() - start
-        m, s = divmod(total, 60)
         result = list(map(list, result))
         for row in result:
             row.append(f'{int(m):0>2}:{int(s):0>2}')
         smc_obj.make_table(result)
-        # print(f"It took {int(m):0>2}:{int(s):0>2} minutes to complete!")
+        input("Enter to exit")
