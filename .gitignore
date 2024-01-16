@@ -2,6 +2,7 @@ env/
 env36/
 .env
 *.txt
+*.exe
 __pycache__/
 test.*
 __pycache__/
