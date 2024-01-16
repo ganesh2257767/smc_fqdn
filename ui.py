@@ -23,15 +23,16 @@ def create_session_and_login():
         app.update()
         smc_obj.set_ds5_switch(url_set_ds5_switch, ds5_body)
         
+        status_label.text = 'Fetching all gateways...'
+        app.update()
         try:
-            status_label.text = 'Fetching all gateways...'
-            app.update()
             smc_obj.get_gw_names_list(url_get_all_resi_gw)
-            status_label.text = 'Done'
-            search_btn.disabled = False
         except IndexError:
             app.alert("Error", "Something went wrong, incorrect page was loaded so can't continue further.", "error")
             return
+        else:
+            status_label.text = 'Done'
+            search_btn.disabled = False
 
 
 def delete_dn_or_gw(result):
@@ -86,10 +87,7 @@ def get_results():
     
     if smc_obj.result:
         for result in smc_obj.result:
-            name = result[0]
-            fqdn = result[1]
-            dns = result[2]
-            
+            name, fqdn, dns = result
             data.append([name, fqdn, ', '.join(dns), f"{int(m):0>2}:{int(s):0>2}"])
         table.data = data
 
