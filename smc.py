@@ -6,13 +6,14 @@ from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import os
 import threading
+import xmltodict
 
 requests.urllib3.disable_warnings()
 
 load_dotenv()
 
 url_login = 'https://10.244.170.85:8099/smc/login'
-url_set_ds5_switch = 'https://10.244.170.85:8099/smc/app'
+url_set_ds5_switch = url_delete_gw = 'https://10.244.170.85:8099/smc/app'
 url_get_all_resi_gw = 'https://10.244.170.85:8099/smc/app?outer=700&inner=708&cid=&PageNumber=1&PageSize=1000&operation=Pop_GetGatewayList&title=Residential Gateway List'
 url_get_specific_gw = 'https://10.244.170.85:8099/smc/app?operation=Pop_GetGateway&outer=700&inner=708&cid=&title=Residential Gateway Detail&GwName={}'
 
@@ -46,6 +47,64 @@ ds5_body = {
    'outer_r': '4',
    'RefreshCachedSwitchData': 'No',
    'style': 'Blue',
+}
+
+get_delete_gw_body = {
+    'cid': '',
+    'GwName': '',
+    'imageField.x': 43,
+    'imageField.y': 9,
+    'inner': 702,
+    'inner_r': 703,
+    'mainObjectType': 'null',
+    'operation': 'GetGateway',
+    'outer': 700,
+    'outer_r': 701
+}
+
+
+delete_gw_body = {
+    'cid': '',
+    'inner': 704,
+    'inner_r': 702,
+    'isXMLHttpRequest': 'true',
+    'mainObjectType': 'null',
+    'operation': 'DeleteGateway',
+    'outer': 701,
+    'outer_r': 700
+}
+
+get_delete_dn_body = {
+   'cid': '',
+   'cid': '',
+   'hiqrequest': 'true',
+   'imageField.x': 48,
+   'imageField.y': 12,
+   'inner': 2,
+   'inner_r': 3,
+   'mainObjectType': 'null',
+   'operation': 'GetSubscriberInfo',
+   'outer': 1,
+   'outer_r': 3,
+   'outer_r_pbx_range': 333,
+   'outer_r_teen_line': 33,
+   'ServiceId': ''
+}
+
+delete_dn_body = {
+   'cid': '',
+   'CSTA_ConnectionInfo': 'MGCP',
+   'CSTA_Subscribed': 'no',
+   'DeleteGatewayObjects': 'DeleteCircuitsAndGateway',
+   'hiqrequest': 'true',
+   'inner': 4,
+   'inner_r': 2,
+   'isXMLHttpRequest': 'true',
+   'mainObjectType': 'null',
+   'operation': 'DeleteSubscriber',
+   'outer': 3,
+   'outer_r': 1,
+   'ServiceId': ''
 }
 
 class HTTPAdapter(requests.adapters.HTTPAdapter):
@@ -85,14 +144,12 @@ class SMC:
         page = BeautifulSoup(get_all_rei_gw_res.content, 'html.parser')
         tr = page.find_all('table')[0].find_all('tr')[3].find('td').find('table').find_all('tr')
 
-        self.gw_names = [row.find('td').get_text() for row in tr[1:]]
-        with open('logs.txt', 'w') as f:
+        self.gw_names = [row.find('td').get_text() for row in tr[1:]][-10:]
+        with open('logs.txt', 'a') as f:
             f.write(', '.join(self.gw_names))
-            f.write('\n'+'-'*300)
+            f.write('\n'+'-'*150)
 
     def send_request(self, args):
-        if len(self.result) > 0:
-            return
         gw_name, mac = args
         specific_gw_response = self.session.get(url=url_get_specific_gw.format(gw_name), verify=False, cookies=self.cookies)   
         specific_gw_response_page = BeautifulSoup(specific_gw_response.content, 'html.parser')
@@ -103,13 +160,50 @@ class SMC:
             return
         if mac in fqdn_name:
             id_to_delete = str(all_tds[5].string)
-            dns = []
-            if len(all_tds) == 171:
-                dns.append(str(all_tds[170].string))
-            if len(all_tds) == 173:
-                dns.append(str(all_tds[170].string))
-                dns.append(str(all_tds[172].string))
-            self.result.append((id_to_delete, fqdn_name, dns))
+            try:
+                dns = [dn.string for dn in all_tds[170::2] if dn.string]
+            except KeyError:
+                dns = []
+            else:
+                self.result.append((id_to_delete, fqdn_name, dns))
+
+
+    def get_gw_for_delete(self, url, body, gw_name):
+        body['GwName'] = gw_name
+        self.session.post(url=url, data=body, verify=False, cookies=self.cookies)
+    
+    
+    def delete_gw(self, url, body):
+        delete_gw_response = self.session.post(url=url, data=body, verify=False, cookies=self.cookies)
+        delete_gw_response_page = BeautifulSoup(delete_gw_response.content, 'html.parser')
+        a = xmltodict.parse(str(delete_gw_response_page))
+        try:
+            a['root']
+            code, status = 0, 'Success'
+        except KeyError:
+            code, status = -1, 'Failure'
+        return code, status
+    
+    
+    def get_dn_for_delete(self, url, body, dn):
+        body['ServiceId'] = int(dn)
+        self.session.post(url=url, data=body, verify=False, cookies=self.cookies)
+    
+    
+    def delete_dn(self, url, body, dn):
+        body['ServiceId'] = int(dn)
+        delete_dn_response = self.session.post(url=url, data=body, verify=False, cookies=self.cookies)
+        delete_dn_response_page = BeautifulSoup(delete_dn_response.content, 'html.parser')
+        a = xmltodict.parse(str(delete_dn_response_page))
+        try:
+            base = a['root']['soap-env:envelope']['soap-env:body']['unsp:deletesubscriberresult']['resultcodestruct']
+
+            code = base['resultcode']
+            status = base['resulttext1']
+        except KeyError:
+            code, status = -1, 'Failure'
+        return code, status
+
 
     def main(self, mac, gw_names):
         self.found = False
@@ -119,7 +213,7 @@ class SMC:
             executor.map(self.send_request, ((name, mac) for name in gw_names))
         
         self.found = True
-        return self.result
+    
     
     def make_table(self, result):
         # Calculate total width
@@ -141,7 +235,8 @@ class SMC:
         print("-" * (total_width + 1))
         print(data_str + '|')
         print("-" * (total_width + 1))
-        
+    
+    
     def timer(self):
         t = 0
         global m, s
@@ -149,10 +244,12 @@ class SMC:
             m, s = divmod(t, 60)
             print(f'{int(m):0>2}:{int(s):0>2}')
             sleep(1)
+            print(self.CLEAR_LINE, end='')
             t += 1
-            print(self.CLEAR_LINE, end="")
-            
+        
+        
 if __name__ == "__main__":
+    confirm = ''
     with requests.Session() as session:
         session.mount("https://", HTTPAdapter())
         smc_obj = SMC(session)
@@ -164,13 +261,40 @@ if __name__ == "__main__":
         
         print("Getting all Gateways...")
         smc_obj.get_gw_names_list(url_get_all_resi_gw)
+        answer = ''
+        while answer != 'q':
+            print("1. Enter MAC to check FQDN")
+            print("q. Quit")
+            answer = input(">> ")
+            
+            if answer == '1':
+                dummy_mac = input("Enter mac: ").lower()
+                os.system("")
+                
+                smc_obj.main(dummy_mac, smc_obj.gw_names)
+                if smc_obj.result:
+                    smc_obj.result = list(map(list, smc_obj.result))
+                    for row in smc_obj.result:
+                        row.append(f'{int(m):0>2}:{int(s):0>2}')
+                    smc_obj.make_table(smc_obj.result)
 
-        dummy_mac = input("Enter mac: ").lower()
-        os.system("")
-        
-        result = smc_obj.main(dummy_mac, smc_obj.gw_names)
-        result = list(map(list, result))
-        for row in result:
-            row.append(f'{int(m):0>2}:{int(s):0>2}')
-        smc_obj.make_table(result)
-    input("Enter to exit")
+                    print()
+                    confirm = input("Do you want to delete this FQDN?[y/n]")
+                    if confirm.lower() == 'y':
+                        for name, _, dns, x in smc_obj.result:
+                            if dns:
+                                for dn in dns:
+                                    smc_obj.get_dn_for_delete(url_delete_gw, get_delete_dn_body, dn)
+                                    code, status = smc_obj.delete_dn(url_delete_gw, delete_dn_body, dn)       
+                            else:
+                                smc_obj.get_gw_for_delete(url_delete_gw, get_delete_gw_body, name)
+                                code, status = smc_obj.delete_gw(url_delete_gw, delete_gw_body)
+                            if status == 'Success':
+                                print(f"Done: Code {code} - Status {status}\n\nDone deleting the DN(s) and Gateway FQDN.\n\nPlease retry task from Strata.")
+                            else:
+                                print(f"Error: Code {code} - Status {status}\n\nIssue deleting DN(s) and Gateway FQDN.\n\nPlease delete manually from SMC v14.", "error")
+                    else:
+                        continue
+                else:
+                    print("No results found for this MAC, please try manually, sorry!")
+                    continue
