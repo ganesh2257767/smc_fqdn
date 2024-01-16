@@ -69,6 +69,7 @@ class SMC:
         self.CURSOR_UP = '\033[1A'
         self.CLEAR = '\x1b[2K'
         self.CLEAR_LINE = self.CURSOR_UP + self.CLEAR
+        self.gw_names = None
 
 
     def login(self, url, body):
@@ -84,9 +85,10 @@ class SMC:
         page = BeautifulSoup(get_all_rei_gw_res.content, 'html.parser')
         tr = page.find_all('table')[0].find_all('tr')[3].find('td').find('table').find_all('tr')
 
-        gw_names = [row.find('td').get_text() for row in tr[1:]]
-        print(gw_names)
-        return gw_names
+        self.gw_names = [row.find('td').get_text() for row in tr[1:]]
+        with open('logs.txt', 'w') as f:
+            f.write(', '.join(self.gw_names))
+            f.write('\n'+'-'*300)
 
     def send_request(self, args):
         if len(self.result) > 0:
@@ -122,7 +124,7 @@ class SMC:
     def make_table(self, result):
         # Calculate total width
         total_width = 0
-        margin = 10
+        margin = 5
         headers = ["GW Name", "FQDN", "DNs", "Time"]
         header_str = ''
         data_str = ''
@@ -161,14 +163,14 @@ if __name__ == "__main__":
         smc_obj.set_ds5_switch(url_set_ds5_switch, ds5_body)
         
         print("Getting all Gateways...")
-        gw_names = smc_obj.get_gw_names_list(url_get_all_resi_gw)
+        smc_obj.get_gw_names_list(url_get_all_resi_gw)
 
         dummy_mac = input("Enter mac: ").lower()
         os.system("")
         
-        result = smc_obj.main(dummy_mac, gw_names)
+        result = smc_obj.main(dummy_mac, smc_obj.gw_names)
         result = list(map(list, result))
         for row in result:
             row.append(f'{int(m):0>2}:{int(s):0>2}')
         smc_obj.make_table(result)
-        input("Enter to exit")
+    input("Enter to exit")
