@@ -10,6 +10,7 @@ import xmltodict
 requests.urllib3.disable_warnings()
 
 load_dotenv()
+print(ssl)
 
 url_login = 'https://10.244.170.85:8099/smc/login'
 url_set_ds5_switch = url_delete_gw = 'https://10.244.170.85:8099/smc/app'
@@ -116,7 +117,8 @@ class HTTPAdapter(requests.adapters.HTTPAdapter):
         ssl_context = ssl.create_default_context()
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
-        ssl_context.minimum_version = ssl.TLSVersion.TLSv1
+        # ssl_context.minimum_version = ssl.TLSVersion.TLSv1
+        # ssl_context.minimum_version = ssl.PROTOCOL_TLSv1
         kwargs["ssl_context"] = ssl_context
         return super().init_poolmanager(*args, **kwargs)
 
@@ -212,4 +214,29 @@ class SMC:
         with ThreadPoolExecutor(max_workers=20) as executor:
             executor.map(self.send_request, ((name, mac) for name in self.gw_names))
 
-        print(f'{self.result=}')
+
+if __name__ == '__main__':
+    data = []
+    with requests.Session() as session:
+        session.mount("https://", HTTPAdapter())
+        smc_obj = SMC(session)
+        try:
+            smc_obj.login(url_login, login_body)
+            smc_obj.set_ds5_switch(url_set_ds5_switch, ds5_body)
+            smc_obj.get_gw_names_list(url_get_all_resi_gw)
+        
+        except requests.exceptions.ConnectionError:
+            print("Exception occurred, quitting!")
+        else:
+            mac = input("Enter mac (12 characters)")
+            if len(mac) == 12:
+                smc_obj.main(mac)
+                if smc_obj.result:
+                    for result in smc_obj.result:
+                        name, fqdn, dns = result
+                        data.append([name, fqdn, ', '.join(dns)])
+                    print(data)
+                else:
+                    print("No FQDN found!")
+            else:
+                print("Mac must be 12 characters")
