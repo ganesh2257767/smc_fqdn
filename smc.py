@@ -9,8 +9,9 @@ import xmltodict
 
 requests.urllib3.disable_warnings()
 
+# 00152F2877BA
+
 load_dotenv()
-print(ssl)
 
 url_login = 'https://10.244.170.85:8099/smc/login'
 url_set_ds5_switch = url_delete_gw = 'https://10.244.170.85:8099/smc/app'
@@ -114,11 +115,11 @@ class HTTPAdapter(requests.adapters.HTTPAdapter):
         super().__init__(*args, **kwargs)
 
     def init_poolmanager(self, *args, **kwargs):
-        ssl_context = ssl.create_default_context()
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+        ssl_context.set_ciphers('DEFAULT:@SECLEVEL=1')
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
-        # ssl_context.minimum_version = ssl.TLSVersion.TLSv1
-        # ssl_context.minimum_version = ssl.PROTOCOL_TLSv1
+        ssl_context.minimum_version = ssl.TLSVersion.TLSv1
         kwargs["ssl_context"] = ssl_context
         return super().init_poolmanager(*args, **kwargs)
 
@@ -225,8 +226,8 @@ if __name__ == '__main__':
             smc_obj.set_ds5_switch(url_set_ds5_switch, ds5_body)
             smc_obj.get_gw_names_list(url_get_all_resi_gw)
         
-        except requests.exceptions.ConnectionError:
-            print("Exception occurred, quitting!")
+        except requests.exceptions.ConnectionError as e:
+            print("Exception occurred, quitting!", e)
         else:
             mac = input("Enter mac (12 characters)")
             if len(mac) == 12:
