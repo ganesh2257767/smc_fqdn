@@ -4,13 +4,14 @@ import requests
 import threading
 from time import sleep
 
+version = 0.2
+
 def create_session_and_login():
     global smc_obj
     with requests.Session() as session:
         session.mount("https://", HTTPAdapter())
         smc_obj = SMC(session)
         status_label.text = 'Logging into SMC...'
-        app.update()
         try:
             smc_obj.login(url_login, login_body)
         except requests.exceptions.ConnectionError:
@@ -20,11 +21,11 @@ def create_session_and_login():
                 app.exit()
         
         status_label.text = 'Setting switch to DS5...'
-        app.update()
+        
         smc_obj.set_ds5_switch(url_set_ds5_switch, ds5_body)
         
         status_label.text = 'Fetching all gateways...'
-        app.update()
+        
         try:
             smc_obj.get_gw_names_list(url_get_all_resi_gw)
         except IndexError:
@@ -63,7 +64,6 @@ def timer():
     while flag:
         m, s = divmod(t, 60)
         status_label.text = f'{m:0>2}:{s:0>2}'
-        app.update()
         t += 1
         sleep(1)
 
@@ -95,14 +95,14 @@ def get_results():
     else:
         app.alert("No records", "No records found for this MAC, please try manually, sorry!", "info")
 
-app = gp.GooeyPieApp('FQDN')
+app = gp.GooeyPieApp(f'iSMC FQDN v{version}')
 
 app.set_resizable(False)
 
 mac_label = gp.Label(app, 'Mac')
 mac_input = gp.Input(app)
 
-search_btn = gp.Button(app, 'Submit', lambda x: threading.Thread(target=get_results).start())
+search_btn = gp.Button(app, 'Submit', lambda x: threading.Thread(target=get_results, daemon=True).start())
 search_btn.disabled = True
 
 progress = gp.Progressbar(app, 'indeterminate')
@@ -127,6 +127,6 @@ table_win.set_grid(2, 1)
 table_win.add(table, 1, 1)
 table_win.add(delete_btn, 2, 1, align='center')
 
-app.on_open(lambda: threading.Thread(target=create_session_and_login).start())
+app.on_open(lambda: threading.Thread(target=create_session_and_login, daemon=True).start())
 
 app.run()
