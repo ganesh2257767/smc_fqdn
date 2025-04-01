@@ -1,0 +1,14 @@
+[project]
+name = "smc-fqdn"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "bs4>=0.0.2",
+    "gooeypie>=0.13.0",
+    "pyinstaller>=6.12.0",
+    "python-dotenv>=1.1.0",
+    "requests>=2.32.3",
+    "xmltodict>=0.14.2",
+]

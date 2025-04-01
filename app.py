@@ -97,6 +97,11 @@ def get_results():
 
 app = gp.GooeyPieApp(f'iSMC FQDN v{version}')
 
+try:
+    app.set_icon("SMC.png")
+except FileNotFoundError as e:
+    pass
+
 app.set_resizable(False)
 
 mac_label = gp.Label(app, 'Mac')
